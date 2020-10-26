@@ -5,6 +5,13 @@ from torch.nn import Parameter
 
 
 def split(x):
+    '''
+    contigous() 함수는 pytorch의 함수로 x와 메모리를 공유하는 새로운 변수를 생성해 줌, 즉 x1, x2바뀌면 x도 바뀜
+    하지만 x1, x2, x의 메타 데이터는 다르기 때문에 변수의 모양을 다르게 인식함
+    pytorch가 메모리 아끼려고 만든 함수
+    
+    여기선 x를 앞에서부터 두번째 차원을 중심으로 둘로 나눠서 리턴해 줌
+    '''
     n = int(x.size()[1]/2)
     x1 = x[:, :n, :, :].contiguous()
     x2 = x[:, n:, :, :].contiguous()
@@ -12,21 +19,35 @@ def split(x):
 
 
 def merge(x1, x2):
+    '''
+    이 함수는 앞에서부터 두번째 차원을 기준으로 concat 해주는 함수임
+    '''
     return torch.cat((x1, x2), 1)
 
 
 class injective_pad(nn.Module):
     def __init__(self, pad_size):
+        '''
+        pad_size 만큼 bottom padding을 넣는 함수 선언(nn.ZeroPad2d)
+        '''
         super(injective_pad, self).__init__()
         self.pad_size = pad_size
         self.pad = nn.ZeroPad2d((0, 0, 0, pad_size))
 
     def forward(self, x):
+        '''
+        permute 함수는 np.transpose 랑 똑같이 차원간의 이동을 해줌
+        근데 여기선 바꿔서 bottom padding 넣고 다시 원상복귀 해줌 무슨 역할인지는 아직 모름
+        '''
         x = x.permute(0, 2, 1, 3)
         x = self.pad(x)
         return x.permute(0, 2, 1, 3)
 
     def inverse(self, x):
+        '''
+        zero padding을 넣었던 부분을 제외하고 나머지를 전달함
+        inverse는 하지 않음
+        '''
         l = len(x[1])
         return x[:, :l-self.pad_size, :, :]
 
@@ -73,17 +94,33 @@ class psi(nn.Module):
         self.block_size_sq = block_size*block_size
 
     def inverse(self, inpt):
+        '''
+        shape 변경 과정
+        view : [batch_size, block_size, block_size, channel // (block_size * block_size), h, w]
+        permute : [batch_size, block_size, h, channel // (block_size * block_size), block_size, w, block_size]
+        reshape : [batch_size, -1, h * block_size, w * block_size]
+        '''
         bl, bl_sq = self.block_size, self.block_size_sq
         bs, d, h, w = inpt.shape
         return inpt.view(bs, bl, bl, int(d // bl_sq), h, w).permute(0, 3, 4, 1, 5, 2).reshape(bs, -1, h * bl, w * bl)
 
     def forward(self, inpt):
+        '''
+        shape 변경 과정
+        view : [batch_size, channel, inpt.shape[2] // block_size, block_size, inpt.shape[3] // block_size, block_size]
+        permute : [batch_size, bloc_size, block_size, channel, inpt.shape[2] // block_size, inpt.shape[3] // block_size]
+        reshape : [batch_size, channel * block_size * block_size, inpt.shape[2] // block_size, inpt.shape[3] // block_size]
+        '''
         bl, bl_sq = self.block_size, self.block_size_sq
         bs, d, new_h, new_w = inpt.shape[0], inpt.shape[1], int(inpt.shape[2] // bl), int(inpt.shape[3] // bl)
         return inpt.view(bs, d, new_h, bl, new_w, bl).permute(0, 3, 5, 1, 2, 4).reshape(bs, d * bl_sq, new_h, new_w)
 
 
 class ListModule(object):
+    '''
+    모델의 모듈을 관리하는 클래스
+    모듈의 이름을 부여하고 모듈 추가시 모듈 개수를 늘려 저장함
+    '''
     def __init__(self, module, prefix, *args):
         self.module = module
         self.prefix = prefix
@@ -106,6 +143,7 @@ class ListModule(object):
             raise IndexError('Out of bound')
         return getattr(self.module, self.prefix + str(i))
 
+# 여기부턴 직접 돌려보면서 확인해야 할 것 같음
 
 def get_all_params(var, all_params):
     if isinstance(var, Parameter):
