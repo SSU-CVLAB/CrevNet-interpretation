@@ -12,54 +12,78 @@ import numpy as np
 from tqdm import trange
 
 parser = argparse.ArgumentParser()
+# 학습률 = 0.0002
 parser.add_argument('--lr', default=0.0002, type=float, help='learning rate')
+# Adam Optimizer 의 파라미터 Beta1 = 0.9
 parser.add_argument('--beta1', default=0.9, type=float, help='momentum term for adam')
+# 배치사이즈 = 1
 parser.add_argument('--batch_size', default=1, type=int, help='batch size')
+# 로그 파일을 저장할 폴더
 parser.add_argument('--log_dir', default='logs', help='base directory to save logs')
+# 모델 파일을 저장할 폴더
 parser.add_argument('--model_dir', default='', help='base directory to save logs')
+# 학습 모델 이름 설정 (이 이름으로 폴더 생성)
 parser.add_argument('--name', default='', help='identifier for directory')
-parser.add_argument('--data_root', default='/home/stevelab2/Desktop/city/', help='root directory for data')
+# 데이터 파일 저장된 폴더
+parser.add_argument('--data_root', default='./data/', help='root directory for data')
+# Optimizer 종류 설정 = adam
 parser.add_argument('--optimizer', default='adam', help='optimizer to train with')
+# Epoch 설정 = 100
 parser.add_argument('--niter', type=int, default=100, help='number of epochs to train for')
+# 랜덤 Seed
 parser.add_argument('--seed', default=1, type=int, help='manual seed')
+# Epoch 당 반복 횟수 = 2000
 parser.add_argument('--epoch_size', type=int, default=2000, help='epoch size')
+# 이미지 너비, 높이, 채널
 parser.add_argument('--image_width', type=int, default=496, help='the height / width of the input image to network')
 parser.add_argument('--image_height', type=int, default=448, help='the height / width of the input image to network')
 parser.add_argument('--channels', default=4, type=int)
+# 데이터셋 이름
 parser.add_argument('--dataset', default='traffic', help='dataset to train with')
+# 입력데이터에서 과거 프레임의 수
 parser.add_argument('--n_past', type=int, default=5, help='number of frames to condition on')
+# 출력 프레임의 미래 프레임 수
 parser.add_argument('--n_future', type=int, default=3, help='number of frames to predict')
+# 평가할 때 실제 예측 할 프레임의 수
 parser.add_argument('--n_eval', type=int, default=8, help='number of frames to predict at eval time')
+# RNN 은닉층의 차원 = 512
 parser.add_argument('--rnn_size', type=int, default=512, help='dimensionality of hidden layer')
+# 후기, 예측 RNN 레이어의 수
 parser.add_argument('--posterior_rnn_layers', type=int, default=2, help='number of layers')
 parser.add_argument('--predictor_rnn_layers', type=int, default=6, help='number of layers')
+# 프레임 인터벌 = 1
 parser.add_argument('--gap', type=int, default=1, help='number of timesteps')
+# Z 잠재공간의 차원
 parser.add_argument('--z_dim', type=int, default=512, help='dimensionality of z_t')
+# 인코더의 출력 / 디코드의 입력 차원
 parser.add_argument('--g_dim', type=int, default=512,
                     help='dimensionality of encoder output vector and decoder input vector')
+# KL(쿨백라이블러) 가중치 = 0.0001
 parser.add_argument('--beta', type=float, default=0.0001, help='weighting on KL to prior')
+# 데이터 로딩 쓰레드
 parser.add_argument('--data_threads', type=int, default=0, help='number of data loading threads')
 
 opt = parser.parse_args()
 
-
-
-
+# 모델 불러오기
 if opt.model_dir != '':
+    # 불러올 모델이 있는 경우
     saved_model = torch.load('%s/model.pth' % opt.model_dir)
     optimizer = opt.optimizer
     model_dir = opt.model_dir
+    # 기존 모델의 속성 가져오기
     opt = saved_model['opt']
     opt.optimizer = optimizer
     opt.model_dir = model_dir
     opt.log_dir = '%s/continued' % opt.log_dir
 else:
+    # 불러올 모델을 지정하지 않은 경우
     name = 'model_city_trial=%dx%d-rnn_size=%d-predictor-posterior-rnn_layers=%d-%d-n_past=%d-n_future=%d-lr=%.7f-g_dim=%d-z_dim=%d-beta=%.7f%s' % (opt.image_width, opt.image_width, opt.rnn_size, opt.predictor_rnn_layers, opt.posterior_rnn_layers, opt.n_past, opt.n_future, opt.lr, opt.g_dim, opt.z_dim,  opt.beta, opt.name)
     if opt.dataset == 'smmnist':
         opt.log_dir = '%s/%s-%d/%s' % (opt.log_dir, opt.dataset, opt.num_digits, name)
     else:
         opt.log_dir = '%s/%s/%s' % (opt.log_dir, opt.dataset, name)
-
+# 생성된 결과 및 플롯을 저장할 폴더 생성
 os.makedirs('%s/gen/' % opt.log_dir, exist_ok=True)
 os.makedirs('%s/plots/' % opt.log_dir, exist_ok=True)
 
