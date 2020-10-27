@@ -60,7 +60,7 @@ parser.add_argument('--g_dim', type=int, default=512,
                     help='dimensionality of encoder output vector and decoder input vector')
 # KL(쿨백라이블러) 가중치 = 0.0001
 parser.add_argument('--beta', type=float, default=0.0001, help='weighting on KL to prior')
-# 데이터 로딩 쓰레드
+# 데이터 로딩 쓰레드(훈련할 땐 안쓰임)
 parser.add_argument('--data_threads', type=int, default=0, help='number of data loading threads')
 
 opt = parser.parse_args()
@@ -87,7 +87,7 @@ else:
 os.makedirs('%s/gen/' % opt.log_dir, exist_ok=True)
 os.makedirs('%s/plots/' % opt.log_dir, exist_ok=True)
 
-
+# 입력 옵션을 바탕으로 학습에 필요한 변수들 생성 (랜덤변수생성)
 opt.max_step = opt.n_past+opt.n_future
 print("Random Seed: ", opt.seed)
 random.seed(opt.seed)
@@ -96,35 +96,47 @@ torch.cuda.manual_seed_all(opt.seed)
 dtype = torch.cuda.FloatTensor
 opt.data_type = 'sequence'
 
-# ---------------- load the models  ----------------
+# ---------------- 콘솔에 모델 설정 값 출력 ----------------
 
 print(opt)
 
-# ---------------- optimizers ----------------
+# ---------------- Optimizer ----------------
+# 근데 왜 옵션으로 Optimizer 받아놓고 안꺼내쓰는지 모르겠음 ;;
 opt.optimizer = optim.Adam
 
-
+# 로컬 모듈 불러오기
 import layers as model
 
-frame_predictor = model.zig_rev_predictor(opt.rnn_size,  opt.rnn_size, opt.g_dim, opt.predictor_rnn_layers,opt.batch_size,'lstm',int(opt.image_width/16),int(opt.image_height/16))
-encoder = model.autoencoder(nBlocks=[2,2,2,2], nStrides=[1, 2, 2, 2],
-                    nChannels=None, init_ds=2,
-                    dropout_rate=0., affineBN=True, in_shape=[opt.channels, opt.image_width, opt.image_height],
-                    mult=4)
+# 예측 모델 생성 (지그재그 리버스 예측자)
+frame_predictor = model.zig_rev_predictor(opt.rnn_size,
+                                          opt.rnn_size,
+                                          opt.g_dim,
+                                          opt.predictor_rnn_layers,
+                                          opt.batch_size,
+                                          'lstm',
+                                          int(opt.image_width/16),
+                                          int(opt.image_height/16))
+
+# 인코더 모델 생성
+encoder = model.autoencoder(nBlocks=[2, 2, 2, 2], nStrides=[1, 2, 2, 2],
+                            nChannels=None, init_ds=2,
+                            dropout_rate=0., affineBN=True,
+                            in_shape=[opt.channels, opt.image_width, opt.image_height], mult=4)
 
 
+# 예측자와 인코더 각각 Optimizer 생성
 frame_predictor_optimizer = opt.optimizer(frame_predictor.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 encoder_optimizer = opt.optimizer(encoder.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
 
-# --------- loss functions ------------------------------------
+# --------- 손실함수 ------------------------------------
 mse_criterion = nn.MSELoss()
 
-# --------- transfer to gpu ------------------------------------
+# --------- GPU에 모델 적재 ------------------------------------
 frame_predictor.cuda()
 encoder.cuda()
 mse_criterion.cuda()
 
-# --------- load a dataset ------------------------------------
+# --------- 데이터셋 불러오기 ------------------------------------
 train_data, test_data = data_utils.load_dataset(opt)
 
 train_loader = DataLoader(train_data,
@@ -141,6 +153,7 @@ test_loader = DataLoader(test_data,
                          pin_memory=False)
 
 
+# 배치 사이즈만큼 데이터를 분할해서 하나씩 리턴
 def get_training_batch():
     while True:
         for sequence in train_loader:
@@ -160,27 +173,32 @@ def get_testing_batch():
 
 testing_batch_generator = get_testing_batch()
 
-def plot(x, epoch,p = False):
-    nsample = 1
-    gen_seq = [[] for i in range(nsample)]
-    gt_seq = [x[i][:,:3] for i in range(len(x))]
+
+# 플롯 그리기
+def plot(x, epoch, p=False):
+    nsample = 1  # 샘플의 수
+    gen_seq = [[] for i in range(nsample)]  # 생성된 시퀸스
+    gt_seq = [x[i][:, :3] for i in range(len(x))]  # 그라운드 트루스
     mse = 0
     for s in range(nsample):
+        # 초기 히든레이어 정의
         frame_predictor.hidden = frame_predictor.init_hidden()
+        # 잠재공간 정의
         memo = Variable(torch.zeros(opt.batch_size, opt.rnn_size, int(opt.image_width/16), int(opt.image_height/16)).cuda())
 
-        gen_seq[s].append(x[0][:,:3])
+        # 시퀸스 정의 (왜 3개만 가져옴???)
+        gen_seq[s].append(x[0][:, :3])
         x_in = x[0]
         for i in range(1, opt.n_eval):
             h = encoder(x_in)
             if i < opt.n_past:
-                _, memo,_ = frame_predictor((h,memo))
+                _, memo, _ = frame_predictor((h,memo))
                 x_in = x[i]
                 gen_seq[s].append(x_in[:,:3])
             else:
-                h_pred, memo,_ = frame_predictor((h, memo))
-                x_in =encoder(h_pred,False).detach()
-                gen_seq[s].append(x_in[:,:3])
+                h_pred, memo, _ = frame_predictor((h, memo))
+                x_in = encoder(h_pred, False).detach()
+                gen_seq[s].append(x_in[:, :3])
 
     to_plot = []
     gifs = [[] for t in range(opt.n_eval)]
@@ -188,7 +206,7 @@ def plot(x, epoch,p = False):
 
     for t in range(opt.n_past, opt.n_eval):
         for i in range(opt.batch_size):
-            mse += torch.sum((gt_seq[t][i][:,:495,:436].data.cpu() - gen_seq[0][t][i][:,:495,:436].data.cpu()) ** 2)/(495.*436.*9.)
+            mse += torch.sum((gt_seq[t][i][:, :495, :436].data.cpu() - gen_seq[0][t][i][:, :495, :436].data.cpu()) ** 2) / (495.*436.*9.)
 
     for i in range(nrow):
         row = []
@@ -221,7 +239,7 @@ def plot(x, epoch,p = False):
 
 
 # --------- training funtions ------------------------------------
-def train(x,e):
+def train(x, e):
     frame_predictor.zero_grad()
     encoder.zero_grad()
     frame_predictor.hidden = frame_predictor.init_hidden()
@@ -229,12 +247,11 @@ def train(x,e):
     mse = 0
     memo = Variable(torch.zeros(opt.batch_size, opt.rnn_size, int(opt.image_width/16), int(opt.image_height/16)).cuda())
 
-
     for i in range(1, opt.n_past + opt.n_future):
         h = encoder(x[i - 1], True)
-        h_pred,memo,_ = frame_predictor((h,memo))
+        h_pred, memo, _ = frame_predictor((h,memo))
         x_pred = encoder(h_pred, False)
-        mse +=  (mse_criterion(x_pred, x[i]))
+        mse += (mse_criterion(x_pred, x[i]))
 
     loss = mse
     loss.backward()
@@ -243,7 +260,6 @@ def train(x,e):
     encoder_optimizer.step()
 
     return mse.data.cpu().numpy() / (opt.n_past + opt.n_future)
-
 
 
 # --------- training loop ------------------------------------
@@ -273,11 +289,10 @@ for epoch in range(opt.niter):
         print('[%02d] mse loss: %.7f| ssim loss: %.7f(%d)' % (
             epoch, epoch_mse / opt.epoch_size, eval / 360.0, epoch * opt.epoch_size * opt.batch_size))
 
-
     # save the model
     if epoch % 1 == 0:
         torch.save({
             'encoder': encoder,
             'frame_predictor': frame_predictor,
             'opt': opt},
-            '%s/model_%s.pth' % (opt.log_dir,epoch))
+            '%s/model_%s.pth' % (opt.log_dir, epoch))
