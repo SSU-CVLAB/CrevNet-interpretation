@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 import data_utils
 import numpy as np
 import time
-import pssim.pytorch_ssim as pytorch_ssim
+import pssim as pytorch_ssim
 from skimage.measure import compare_ssim
 from tqdm import trange
 
