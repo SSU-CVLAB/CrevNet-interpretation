@@ -36,7 +36,7 @@ parser.add_argument('--rnn_size', type=int, default=32, help='dimensionality of 
 parser.add_argument('--predictor_rnn_layers', type=int, default=8, help='number of layers')
 parser.add_argument('--beta', type=float, default=0.0001, help='weighting on KL to prior')
 parser.add_argument('--model', default='crevnet', help='model type (dcgan | vgg)')
-parser.add_argument('--data_threads', type=int, default=5, help='number of data loading threads')
+parser.add_argument('--data_threads', type=int, default=0, help='number of data loading threads')
 parser.add_argument('--num_digits', type=int, default=2, help='number of digits for moving mnist')
 
 

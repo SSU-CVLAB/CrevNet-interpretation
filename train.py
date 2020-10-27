@@ -34,11 +34,11 @@ parser.add_argument('--niter', type=int, default=50, help='number of epochs to t
 # 랜덤 Seed
 parser.add_argument('--seed', default=1, type=int, help='manual seed')
 # Epoch 당 반복 횟수 = 2000
-parser.add_argument('--epoch_size', type=int, default=5000, help='epoch size')
+parser.add_argument('--epoch_size', type=int, default=2000, help='epoch size')
 # 이미지 너비, 높이, 채널
 parser.add_argument('--image_width', type=int, default=64, help='the height / width of the input image to network')
 parser.add_argument('--image_height', type=int, default=64, help='the height / width of the input image to network')
-parser.add_argument('--channels', default=4, type=int)
+parser.add_argument('--channels', default=8, type=int)
 # 데이터셋 이름
 parser.add_argument('--dataset', default='smmnist', help='dataset to train with')
 # 입력데이터에서 과거 프레임의 수
@@ -143,13 +143,13 @@ mse_criterion.cuda()
 train_data, test_data = data_utils.load_dataset(opt)
 
 train_loader = DataLoader(train_data,
-                          num_workers=2,
+                          #num_workers=2,
                           batch_size=opt.batch_size,
                           shuffle=True,
                           drop_last=True,
                           pin_memory=False)
 test_loader = DataLoader(test_data,
-                         num_workers=opt.data_threads,
+                         #num_workers=opt.data_threads,
                          batch_size=opt.batch_size,
                          shuffle=False,
                          drop_last=False,
@@ -241,7 +241,7 @@ def plot(x, epoch, p=False):
     return mse
 
 
-# --------- training funtions ------------------------------------
+# --------- training functions ------------------------------------
 def train(x, e):
     frame_predictor.zero_grad()
     encoder.zero_grad()
@@ -273,7 +273,7 @@ for epoch in range(opt.niter):
 
     for i in trange(opt.epoch_size):
         x = next(training_batch_generator)
-        mse = train(x,epoch)
+        mse = train(x, epoch)
         epoch_mse += mse
 
     with torch.no_grad():
