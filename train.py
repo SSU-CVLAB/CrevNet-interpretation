@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-import torch.nn as nn
+import torch.nn as nns
 import argparse
 import os
 import random
@@ -10,6 +10,7 @@ import utils
 import data_utils
 import numpy as np
 from tqdm import trange
+import torch.nn as nn
 
 parser = argparse.ArgumentParser()
 # 학습률 = 0.0002
@@ -25,43 +26,45 @@ parser.add_argument('--model_dir', default='', help='base directory to save logs
 # 학습 모델 이름 설정 (이 이름으로 폴더 생성)
 parser.add_argument('--name', default='', help='identifier for directory')
 # 데이터 파일 저장된 폴더
-parser.add_argument('--data_root', default='./data/', help='root directory for data')
+parser.add_argument('--data_root', default='smmnist', help='root directory for data')
 # Optimizer 종류 설정 = adam
 parser.add_argument('--optimizer', default='adam', help='optimizer to train with')
 # Epoch 설정 = 100
-parser.add_argument('--niter', type=int, default=100, help='number of epochs to train for')
+parser.add_argument('--niter', type=int, default=50, help='number of epochs to train for')
 # 랜덤 Seed
 parser.add_argument('--seed', default=1, type=int, help='manual seed')
 # Epoch 당 반복 횟수 = 2000
-parser.add_argument('--epoch_size', type=int, default=2000, help='epoch size')
+parser.add_argument('--epoch_size', type=int, default=5000, help='epoch size')
 # 이미지 너비, 높이, 채널
-parser.add_argument('--image_width', type=int, default=496, help='the height / width of the input image to network')
-parser.add_argument('--image_height', type=int, default=448, help='the height / width of the input image to network')
+parser.add_argument('--image_width', type=int, default=64, help='the height / width of the input image to network')
+parser.add_argument('--image_height', type=int, default=64, help='the height / width of the input image to network')
 parser.add_argument('--channels', default=4, type=int)
 # 데이터셋 이름
-parser.add_argument('--dataset', default='traffic', help='dataset to train with')
+parser.add_argument('--dataset', default='smmnist', help='dataset to train with')
 # 입력데이터에서 과거 프레임의 수
-parser.add_argument('--n_past', type=int, default=5, help='number of frames to condition on')
+parser.add_argument('--n_past', type=int, default=10, help='number of frames to condition on')
 # 출력 프레임의 미래 프레임 수
-parser.add_argument('--n_future', type=int, default=3, help='number of frames to predict')
+parser.add_argument('--n_future', type=int, default=10, help='number of frames to predict')
 # 평가할 때 실제 예측 할 프레임의 수
-parser.add_argument('--n_eval', type=int, default=8, help='number of frames to predict at eval time')
+parser.add_argument('--n_eval', type=int, default=10, help='number of frames to predict at eval time')
 # RNN 은닉층의 차원 = 512
-parser.add_argument('--rnn_size', type=int, default=512, help='dimensionality of hidden layer')
+parser.add_argument('--rnn_size', type=int, default=128, help='dimensionality of hidden layer')
 # 후기, 예측 RNN 레이어의 수
 parser.add_argument('--posterior_rnn_layers', type=int, default=2, help='number of layers')
 parser.add_argument('--predictor_rnn_layers', type=int, default=6, help='number of layers')
 # 프레임 인터벌 = 1
 parser.add_argument('--gap', type=int, default=1, help='number of timesteps')
 # Z 잠재공간의 차원
-parser.add_argument('--z_dim', type=int, default=512, help='dimensionality of z_t')
+parser.add_argument('--z_dim', type=int, default=128, help='dimensionality of z_t')
 # 인코더의 출력 / 디코드의 입력 차원
-parser.add_argument('--g_dim', type=int, default=512,
+parser.add_argument('--g_dim', type=int, default=128,
                     help='dimensionality of encoder output vector and decoder input vector')
 # KL(쿨백라이블러) 가중치 = 0.0001
 parser.add_argument('--beta', type=float, default=0.0001, help='weighting on KL to prior')
 # 데이터 로딩 쓰레드(훈련할 땐 안쓰임)
 parser.add_argument('--data_threads', type=int, default=0, help='number of data loading threads')
+
+parser.add_argument('--num_digits', type=int, default=2, help='number of digits')
 
 opt = parser.parse_args()
 

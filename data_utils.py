@@ -20,7 +20,6 @@ from PIL import Image, ImageDraw
 from torchvision import datasets, transforms
 from torch.autograd import Variable
 import imageio
-# from data.kth128 import KTH
 
 hostname = socket.gethostname()
 
@@ -37,7 +36,7 @@ def load_dataset(opt):
         test_data = MovingMNIST(
             train=False,
             data_root=opt.data_root,
-            seq_len=opt.n_eval,
+            seq_len=opt.max_step,
             image_size=opt.image_width,
             num_digits=opt.num_digits)
     elif opt.dataset == 'bair':
@@ -66,17 +65,16 @@ def load_dataset(opt):
                 image_size=opt.image_width,
                 data_type=opt.data_type)
     elif opt.dataset == 'ucf':
-        from data.ucf import UCF
         train_data = UCF(
-            data_root=opt.data_root,
-            seq_len=opt.max_step,
-            train=True
-        )
-        test_data = UCF(
-            data_root=opt.data_root,
-            seq_len=opt.max_step,
-            train=False
-        )
+                data_root=opt.data_root,
+                seq_len=opt.max_step,
+                train=True
+                )
+        test_data =UCF(
+                data_root=opt.data_root,
+                seq_len=opt.max_step,
+                train=False
+                )
     elif opt.dataset == 'kitti':
         from data.kitti import KITTI
         train_data = KITTI(
@@ -87,32 +85,7 @@ def load_dataset(opt):
             train=False,
             data_root=opt.data_root,
             seq_len=opt.max_step)
-    elif opt.dataset == 'det':
-        from data.det import KITTI
-        train_data = KITTI(
-            train=True)
-        test_data = KITTI(
-            train=False)
-    elif opt.dataset == 'traffic':
-        from data.map import CITY
-        train_data = CITY(
-            train=True,
-            data_root=opt.data_root,
-            seq_len=opt.max_step,input_len=opt.n_past,gap=opt.gap)
-        test_data = CITY(
-            train=False,
-            data_root=opt.data_root,
-            seq_len=opt.max_step, input_len=opt.n_past,gap=opt.gap)
-    elif opt.dataset == 'caltech':
-        from data.caltech import CALTECH
-        train_data = CALTECH(
-            train=True,
-            data_root=opt.data_root,
-            seq_len=opt.max_step)
-        test_data = CALTECH(
-            train=False,
-            data_root=opt.data_root,
-            seq_len=opt.max_step)
+
     return train_data, test_data
 
 
@@ -121,7 +94,7 @@ def sequence_input(seq, dtype):
 
 
 def normalize_data(opt, dtype, sequence):
-    if opt.dataset == 'smmnist' or opt.dataset == 'kth' or opt.dataset == 'bair' or opt.dataset == 'ucf' or opt.dataset == 'kitti' or opt.dataset == 'caltech' or opt.dataset == 'traffic' or opt.dataset == 'det':
+    if opt.dataset == 'smmnist' or opt.dataset == 'smmnist2' or opt.dataset == 'kth' or opt.dataset == 'bair' or opt.dataset == 'ucf' or opt.dataset == 'kitti':
         sequence.transpose_(0, 1)
         sequence.transpose_(3, 4).transpose_(2, 3)
     else:
@@ -191,7 +164,7 @@ def save_np_img(fname, x):
     if x.shape[0] == 1:
         x = np.tile(x, (3, 1, 1))
     img = scipy.misc.toimage(x,
-                             high=255 * x.max(),
+                             high=255.,
                              channel_axis=0)
     img.save(fname)
 
@@ -201,11 +174,8 @@ def make_image(tensor):
     if tensor.size(0) == 1:
         tensor = tensor.expand(3, tensor.size(1), tensor.size(2))
     # pdb.set_trace()
-    # a=
-    # b= 255 * tensor.max()
-    # print(b)
     return scipy.misc.toimage(tensor.numpy(),
-                              high=255,
+                              high=255.,
                               channel_axis=0)
 
 
